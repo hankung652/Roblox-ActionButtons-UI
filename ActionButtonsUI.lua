@@ -104,15 +104,26 @@ manualYButton.MouseButton1Click:Connect(function()
 	vim:SendKeyEvent(false, "Y", false, game)
 end)
 
--- Auto R เปิดอัตโนมัติ (ไม่รบกวนปุ่มเดิน/กระโดด)
+-- Auto R เปิดอัตโนมัติ (กันตาย, เช็คคูลดาวน์)
+local autoRCooldown = false
+
+-- รีเซ็ตเมื่อเกิดใหม่
+player.CharacterAdded:Connect(function(char)
+	character = char
+	humanoid = character:WaitForChild("Humanoid")
+	autoRCooldown = false
+end)
+
 RunService.RenderStepped:Connect(function()
-	if humanoid.Health <= humanoid.MaxHealth * 0.55 then
+	if humanoid.Health <= humanoid.MaxHealth * 0.55 and not autoRCooldown then
+		autoRCooldown = true
 		task.spawn(function()
 			local vim = game:GetService("VirtualInputManager")
-			-- กดปุ่มชั่วคราว
 			vim:SendKeyEvent(true, "R", false, game)
-			wait(0.03) -- เวลาสั้นมาก → ปุ่มเดิน/กระโดดไม่หาย
+			wait(0.03) -- ปุ่มเดิน/กระโดดไม่หาย
 			vim:SendKeyEvent(false, "R", false, game)
+			wait(1) -- ระยะบล็อกสกิล (ปรับตามคูลดาวน์จริงของสกิล)
+			autoRCooldown = false
 		end)
 	end
 end)
