@@ -2,37 +2,24 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local camera = workspace.CurrentCamera
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 
--- สร้าง RemoteEvent สำหรับ R/Y
-local function createRemoteEvent(name)
-	local re = ReplicatedStorage:FindFirstChild(name)
-	if not re then
-		re = Instance.new("RemoteEvent")
-		re.Name = name
-		re.Parent = ReplicatedStorage
-	end
-	return re
-end
-
-local remoteR = createRemoteEvent("AutoR")
-local remoteY = createRemoteEvent("ManualY")
-
 -- สร้าง ScreenGui
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ActionButtonsUI"
+screenGui.Name = "AutoRManualYUI"
+screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 -- Frame หลัก
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 220, 0, 70)
-frame.Position = UDim2.new(0.5, 0, 0.85, 0)
-frame.AnchorPoint = Vector2.new(0.5, 0.5)
-frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+frame.Size = UDim2.new(0,220,0,70)
+frame.Position = UDim2.new(0.5,0,0.85,0)
+frame.AnchorPoint = Vector2.new(0.5,0.5)
+frame.BackgroundColor3 = Color3.fromRGB(35,35,35)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
@@ -80,38 +67,39 @@ frame.InputBegan:Connect(function(input)
 		startPos = frame.Position
 	end
 end)
-
 frame.InputChanged:Connect(function(input)
 	if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
 		update(input)
 	end
 end)
-
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		dragging = false
 	end
 end)
 
--- ระบบ Auto R (กันตาย)
+-- ตัวแปร Auto
 local autoEnabled = false
 autoButton.MouseButton1Click:Connect(function()
 	autoEnabled = not autoEnabled
 	autoButton.Text = autoEnabled and "Auto R: ON" or "Auto R: OFF"
 end)
 
+-- Manual Y
+manualButton.MouseButton1Click:Connect(function()
+	game:GetService("VirtualInputManager"):SendKeyEvent(true, "Y", false, game)
+	wait(0.1)
+	game:GetService("VirtualInputManager"):SendKeyEvent(false, "Y", false, game)
+end)
+
+-- Auto R แบบกันตาย (กดเหมือนกดคีย์บอร์ด)
 RunService.RenderStepped:Connect(function()
-	if autoEnabled then
-		if humanoid.Health <= humanoid.MaxHealth * 0.55 then
-			remoteR:FireServer()
-		end
+	if autoEnabled and humanoid.Health <= humanoid.MaxHealth * 0.55 then
+		game:GetService("VirtualInputManager"):SendKeyEvent(true, "R", false, game)
+		wait(0.1)
+		game:GetService("VirtualInputManager"):SendKeyEvent(false, "R", false, game)
 	end
 end)
 
--- Manual Y
-manualButton.MouseButton1Click:Connect(function()
-	remoteY:FireServer()
-end)
-
--- ระบบกันแบนเบื้องต้น
-hookfunction(player.Kick, function() return end)
+-- ระบบกันแบน
+hookfunction(player.Kick,function() return end)
