@@ -1,111 +1,81 @@
 -- LocalScript (StarterPlayerScripts)
+
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local humanoid = nil
 
--- ป้องกัน Kick เบื้องต้น
-hookfunction(player.Kick, function() return end)
+-- ฟังก์ชันอัพเดต Humanoid ตอนรีสปอน
+local function updateHumanoid()
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        humanoid = player.Character:FindFirstChild("Humanoid")
+    end
+end
 
--- สร้าง UI
+player.CharacterAdded:Connect(function()
+    wait(1)
+    updateHumanoid()
+end)
+
+updateHumanoid()
+
+-- UI ปุ่ม Y (ปุ่ม R ไม่มี UI แล้ว)
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AutoSystemUI"
+screenGui.Name = "SkillUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- ปุ่ม Y สำหรับกดด้วยตัวเอง
-local yButton = Instance.new("TextButton")
-yButton.Size = UDim2.new(0, 100, 0, 50)
-yButton.Position = UDim2.new(0.5, -50, 0.85, 0)
-yButton.Text = "Y"
-yButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-yButton.TextColor3 = Color3.fromRGB(255, 255, 0)
-yButton.Font = Enum.Font.GothamBold
-yButton.TextSize = 28
-yButton.Parent = screenGui
+local skillBtn = Instance.new("TextButton")
+skillBtn.Size = UDim2.new(0, 100, 0, 50)
+skillBtn.Position = UDim2.new(0.5, -50, 0.85, 0)
+skillBtn.Text = "Y"
+skillBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+skillBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+skillBtn.Font = Enum.Font.FredokaOne
+skillBtn.TextSize = 28
+skillBtn.Parent = screenGui
 
-local yCorner = Instance.new("UICorner")
-yCorner.CornerRadius = UDim.new(0.3, 0)
-yCorner.Parent = yButton
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0.3, 0)
+corner.Parent = skillBtn
 
--- Drag UI
-local dragging = false
-local dragStart, startPos
-local function updateDrag(input)
-    local delta = input.Position - dragStart
-    yButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
-        startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-
-yButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = yButton.Position
-    end
-end)
-
-yButton.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        if dragging then updateDrag(input) end
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-
--- ฟังก์ชันกดปุ่ม Y ด้วยตนเอง
-yButton.MouseButton1Click:Connect(function()
-    VirtualInputManager:SendKeyEvent(true, "Y", false, game)
+-- ปุ่ม Y ทำงานเมื่อกด
+skillBtn.MouseButton1Click:Connect(function()
+    game:GetService("VirtualInputManager"):SendKeyEvent(true, "Y", false, game)
     task.wait(0.05)
-    VirtualInputManager:SendKeyEvent(false, "Y", false, game)
+    game:GetService("VirtualInputManager"):SendKeyEvent(false, "Y", false, game)
 end)
 
--- รอ Humanoid
-player.CharacterAdded:Connect(function(char)
-    humanoid = char:WaitForChild("Humanoid")
-end)
-if player.Character then
-    humanoid = player.Character:WaitForChild("Humanoid")
-end
-
--- ฟังก์ชันกด R
-local function pressR()
-    VirtualInputManager:SendKeyEvent(true, "R", false, game)
+-- ฟังก์ชันกดปุ่มด้วยคีย์บอร์ด
+local function pressKey(key)
+    game:GetService("VirtualInputManager"):SendKeyEvent(true, key, false, game)
     task.wait(0.05)
-    VirtualInputManager:SendKeyEvent(false, "R", false, game)
+    game:GetService("VirtualInputManager"):SendKeyEvent(false, key, false, game)
 end
 
--- Auto-R ทำงานทันทีเมื่อรันสคริปต์
-local autoRCooldown = false
+-- ป้องกัน Kick
+hookfunction(Players.LocalPlayer.Kick, function() return end)
+
+-- ระบบ Auto-R (ติดตัว)
+local lastPress = 0
+local cooldownTime = 3 -- ป้องกันกดรัว (แก้ Bug ปุ่มหาย)
+local function canPress()
+    return tick() - lastPress >= cooldownTime
+end
+
 RunService.RenderStepped:Connect(function()
     if humanoid and humanoid.Health > 0 then
-        if humanoid.Health <= humanoid.MaxHealth * 0.55 and not autoRCooldown then
-            autoRCooldown = true
-            pressR()
-
-            -- ตรวจจับคูลดาวน์แบบอิสระ
-            task.spawn(function()
-                repeat
-                    task.wait(0.7) -- ลองเช็คทุก 0.7 วินาที
-                    local before = humanoid.Health
-                    pressR()
-                    task.wait(0.1)
-                    local after = humanoid.Health
-                    if before ~= after then
-                        -- สกิลทำงาน = พร้อมใช้งานใหม่
-                        break
-                    end
-                until false
-                autoRCooldown = false
-            end)
+        local healthPercent = (humanoid.Health / humanoid.MaxHealth) * 100
+        if healthPercent <= 55 then
+            if canPress() then
+                pressKey("R")
+                lastPress = tick()
+            end
         end
     end
 end)
+
+-- ผู้เล่นยังสามารถกด R เองได้ปกติ (ไม่บล็อกคีย์บอร์ด)
