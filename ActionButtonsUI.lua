@@ -1,132 +1,111 @@
--- LocalScript (ใส่ใน StarterPlayerScripts)
+-- LocalScript (StarterPlayerScripts)
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
+local humanoid = nil
 
--- สร้าง ScreenGui
+-- ป้องกัน Kick เบื้องต้น
+hookfunction(player.Kick, function() return end)
+
+-- สร้าง UI
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AutoRManualRYUI"
+screenGui.Name = "AutoSystemUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Frame หลัก (UI สวยแบบ King Legacy)
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0,260,0,80)
-frame.Position = UDim2.new(0.5,0,0.85,0)
-frame.AnchorPoint = Vector2.new(0.5,0.5)
-frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-frame.Parent = screenGui
-local uicorner = Instance.new("UICorner", frame)
-uicorner.CornerRadius = UDim.new(0,12)
+-- ปุ่ม Y สำหรับกดด้วยตัวเอง
+local yButton = Instance.new("TextButton")
+yButton.Size = UDim2.new(0, 100, 0, 50)
+yButton.Position = UDim2.new(0.5, -50, 0.85, 0)
+yButton.Text = "Y"
+yButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+yButton.TextColor3 = Color3.fromRGB(255, 255, 0)
+yButton.Font = Enum.Font.GothamBold
+yButton.TextSize = 28
+yButton.Parent = screenGui
 
--- Gradient + Stroke แบบ King Legacy
-local gradient = Instance.new("UIGradient", frame)
-gradient.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0, Color3.fromRGB(0,170,255)),
-	ColorSequenceKeypoint.new(1, Color3.fromRGB(0,255,127))
-})
-local stroke = Instance.new("UIStroke", frame)
-stroke.Color = Color3.fromRGB(0,0,0)
-stroke.Thickness = 2
+local yCorner = Instance.new("UICorner")
+yCorner.CornerRadius = UDim.new(0.3, 0)
+yCorner.Parent = yButton
 
--- ปุ่ม Manual R
-local manualRButton = Instance.new("TextButton")
-manualRButton.Size = UDim2.new(0.3,0,0.8,0)
-manualRButton.Position = UDim2.new(0.05,0,0.1,0)
-manualRButton.Text = "Press R"
-manualRButton.TextScaled = true
-manualRButton.BackgroundColor3 = Color3.fromRGB(0,170,255)
-manualRButton.TextColor3 = Color3.fromRGB(255,255,255)
-manualRButton.Parent = frame
-local rCorner = Instance.new("UICorner", manualRButton)
-rCorner.CornerRadius = UDim.new(0,8)
-
--- ปุ่ม Manual Y
-local manualYButton = Instance.new("TextButton")
-manualYButton.Size = UDim2.new(0.3,0,0.8,0)
-manualYButton.Position = UDim2.new(0.65,0,0.1,0)
-manualYButton.Text = "Press Y"
-manualYButton.TextScaled = true
-manualYButton.BackgroundColor3 = Color3.fromRGB(0,255,127)
-manualYButton.TextColor3 = Color3.fromRGB(255,255,255)
-manualYButton.Parent = frame
-local yCorner = Instance.new("UICorner", manualYButton)
-yCorner.CornerRadius = UDim.new(0,8)
-
--- ระบบลาก Frame
+-- Drag UI
 local dragging = false
 local dragStart, startPos
-local function update(input)
-	local delta = input.Position - dragStart
-	frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
-		startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+local function updateDrag(input)
+    local delta = input.Position - dragStart
+    yButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+        startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 end
 
-frame.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = true
-		dragStart = input.Position
-		startPos = frame.Position
-	end
+yButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = yButton.Position
+    end
 end)
-frame.InputChanged:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
-		update(input)
-	end
+
+yButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        if dragging then updateDrag(input) end
+    end
 end)
+
 UserInputService.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = false
-	end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
 end)
 
--- Manual R กดด้วยตัวเอง
-manualRButton.MouseButton1Click:Connect(function()
-	local vim = game:GetService("VirtualInputManager")
-	vim:SendKeyEvent(true, "R", false, game)
-	wait(0.05)
-	vim:SendKeyEvent(false, "R", false, game)
+-- ฟังก์ชันกดปุ่ม Y ด้วยตนเอง
+yButton.MouseButton1Click:Connect(function()
+    VirtualInputManager:SendKeyEvent(true, "Y", false, game)
+    task.wait(0.05)
+    VirtualInputManager:SendKeyEvent(false, "Y", false, game)
 end)
 
--- Manual Y กดด้วยตัวเอง
-manualYButton.MouseButton1Click:Connect(function()
-	local vim = game:GetService("VirtualInputManager")
-	vim:SendKeyEvent(true, "Y", false, game)
-	wait(0.05)
-	vim:SendKeyEvent(false, "Y", false, game)
-end)
-
--- Auto R เปิดอัตโนมัติ (กันตาย, เช็คคูลดาวน์)
-local autoRCooldown = false
-
--- รีเซ็ตเมื่อเกิดใหม่
+-- รอ Humanoid
 player.CharacterAdded:Connect(function(char)
-	character = char
-	humanoid = character:WaitForChild("Humanoid")
-	autoRCooldown = false
+    humanoid = char:WaitForChild("Humanoid")
 end)
+if player.Character then
+    humanoid = player.Character:WaitForChild("Humanoid")
+end
 
+-- ฟังก์ชันกด R
+local function pressR()
+    VirtualInputManager:SendKeyEvent(true, "R", false, game)
+    task.wait(0.05)
+    VirtualInputManager:SendKeyEvent(false, "R", false, game)
+end
+
+-- Auto-R ทำงานทันทีเมื่อรันสคริปต์
+local autoRCooldown = false
 RunService.RenderStepped:Connect(function()
-	if humanoid.Health <= humanoid.MaxHealth * 0.55 and not autoRCooldown then
-		autoRCooldown = true
-		task.spawn(function()
-			local vim = game:GetService("VirtualInputManager")
-			vim:SendKeyEvent(true, "R", false, game)
-			wait(0.03) -- ปุ่มเดิน/กระโดดไม่หาย
-			vim:SendKeyEvent(false, "R", false, game)
-			wait(1) -- ระยะบล็อกสกิล (ปรับตามคูลดาวน์จริงของสกิล)
-			autoRCooldown = false
-		end)
-	end
-end)
+    if humanoid and humanoid.Health > 0 then
+        if humanoid.Health <= humanoid.MaxHealth * 0.55 and not autoRCooldown then
+            autoRCooldown = true
+            pressR()
 
--- ระบบกันแบนพื้นฐาน
-hookfunction(player.Kick,function() return end)
+            -- ตรวจจับคูลดาวน์แบบอิสระ
+            task.spawn(function()
+                repeat
+                    task.wait(0.7) -- ลองเช็คทุก 0.7 วินาที
+                    local before = humanoid.Health
+                    pressR()
+                    task.wait(0.1)
+                    local after = humanoid.Health
+                    if before ~= after then
+                        -- สกิลทำงาน = พร้อมใช้งานใหม่
+                        break
+                    end
+                until false
+                autoRCooldown = false
+            end)
+        end
+    end
+end)
