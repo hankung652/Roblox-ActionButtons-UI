@@ -14,12 +14,12 @@ screenGui.Name = "AutoRManualRYUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Frame หลัก
+-- Frame หลัก (UI สวยแบบ King Legacy)
 local frame = Instance.new("Frame")
 frame.Size = UDim2.new(0,260,0,80)
 frame.Position = UDim2.new(0.5,0,0.85,0)
 frame.AnchorPoint = Vector2.new(0.5,0.5)
-frame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
@@ -27,11 +27,21 @@ frame.Parent = screenGui
 local uicorner = Instance.new("UICorner", frame)
 uicorner.CornerRadius = UDim.new(0,12)
 
+-- Gradient + Stroke แบบ King Legacy
+local gradient = Instance.new("UIGradient", frame)
+gradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(0,170,255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(0,255,127))
+})
+local stroke = Instance.new("UIStroke", frame)
+stroke.Color = Color3.fromRGB(0,0,0)
+stroke.Thickness = 2
+
 -- ปุ่ม Manual R
 local manualRButton = Instance.new("TextButton")
 manualRButton.Size = UDim2.new(0.3,0,0.8,0)
 manualRButton.Position = UDim2.new(0.05,0,0.1,0)
-manualRButton.Text = "Press R"  -- ข้อความถูกต้อง
+manualRButton.Text = "Press R"
 manualRButton.TextScaled = true
 manualRButton.BackgroundColor3 = Color3.fromRGB(0,170,255)
 manualRButton.TextColor3 = Color3.fromRGB(255,255,255)
@@ -94,13 +104,14 @@ manualYButton.MouseButton1Click:Connect(function()
 	vim:SendKeyEvent(false, "Y", false, game)
 end)
 
--- Auto R เปิดอัตโนมัติ (กันตาย)
+-- Auto R เปิดอัตโนมัติ (ไม่รบกวนปุ่มเดิน/กระโดด)
 RunService.RenderStepped:Connect(function()
 	if humanoid.Health <= humanoid.MaxHealth * 0.55 then
 		task.spawn(function()
 			local vim = game:GetService("VirtualInputManager")
+			-- กดปุ่มชั่วคราว
 			vim:SendKeyEvent(true, "R", false, game)
-			wait(0.05)
+			wait(0.03) -- เวลาสั้นมาก → ปุ่มเดิน/กระโดดไม่หาย
 			vim:SendKeyEvent(false, "R", false, game)
 		end)
 	end
