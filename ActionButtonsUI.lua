@@ -3,6 +3,8 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
 local player = Players.LocalPlayer
 local humanoid = nil
 
@@ -19,29 +21,45 @@ player.CharacterAdded:Connect(function()
 end)
 updateHumanoid()
 
--- UI หลัก
+-- โหลดตำแหน่งที่จำไว้
+local savedPositions = {}
+local rawData = player:GetAttribute("UIButtonPositions")
+if rawData and rawData ~= "" then
+    savedPositions = HttpService:JSONDecode(rawData)
+end
+
+-- ฟังก์ชันบันทึกตำแหน่ง
+local function savePosition(name, pos)
+    savedPositions[name] = {
+        scaleX = pos.X.Scale,
+        offsetX = pos.X.Offset,
+        scaleY = pos.Y.Scale,
+        offsetY = pos.Y.Offset
+    }
+    player:SetAttribute("UIButtonPositions", HttpService:JSONEncode(savedPositions))
+end
+
+-- สร้าง UI สำหรับปุ่ม R และ Y
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SkillUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- ตัวแปรเก็บตำแหน่ง
-local savedPositions = {}
-
--- โหลดตำแหน่งที่เคยบันทึก (Session)
-local function loadPosition(name, defaultX)
-    if savedPositions[name] then
-        return savedPositions[name]
-    else
-        return UDim2.new(0.5, defaultX, 0.85, 0)
+local function createButton(text, posX, key)
+    -- โหลดตำแหน่งเก่า ถ้าไม่มีใช้ค่า default
+    local defaultPosition = UDim2.new(0.5, posX, 0.85, 0)
+    if savedPositions[text] then
+        defaultPosition = UDim2.new(
+            savedPositions[text].scaleX,
+            savedPositions[text].offsetX,
+            savedPositions[text].scaleY,
+            savedPositions[text].offsetY
+        )
     end
-end
 
-local function createButton(name, text, posX, key)
     local btn = Instance.new("TextButton")
-    btn.Name = name
     btn.Size = UDim2.new(0, 100, 0, 50)
-    btn.Position = loadPosition(name, posX)
+    btn.Position = defaultPosition
     btn.Text = text
     btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -59,15 +77,13 @@ local function createButton(name, text, posX, key)
         game:GetService("VirtualInputManager"):SendKeyEvent(false, key, false, game)
     end)
 
-    -- ✅ ระบบลาก + บันทึกตำแหน่ง
+    -- ✅ ทำให้ปุ่มลากได้ + บันทึกตำแหน่ง
     local dragging = false
     local dragInput, dragStart, startPos
 
     local function update(input)
         local delta = input.Position - dragStart
-        local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        btn.Position = newPos
-        savedPositions[name] = newPos
+        btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 
     btn.InputBegan:Connect(function(input)
@@ -79,6 +95,7 @@ local function createButton(name, text, posX, key)
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
+                    savePosition(text, btn.Position)
                 end
             end)
         end
@@ -99,9 +116,8 @@ local function createButton(name, text, posX, key)
     return btn
 end
 
--- สร้างปุ่ม
-local btnR = createButton("ButtonR", "R", -110, "R")
-local btnY = createButton("ButtonY", "Y", 10, "Y")
+local btnR = createButton("R", -110, "R")
+local btnY = createButton("Y", 10, "Y")
 
 -- ฟังก์ชันกดปุ่มผ่านสคริปต์
 local function pressKey(key)
@@ -113,16 +129,16 @@ end
 -- ป้องกัน Kick
 hookfunction(Players.LocalPlayer.Kick, function() return end)
 
--- ✅ ระบบ Auto-R (ติดตัว)
+-- ระบบ Auto-R (ติดตัว)
 local lastPress = 0
 local cooldownTime = 5 -- ป้องกันกดรัว
 local function canPress()
     return tick() - lastPress >= cooldownTime
 end
 
--- ✅ ตรวจว่าปุ่ม R ยังไม่ถูกกด (ป้องกันกดรัวจนปุ่มเดินหาย)
+-- ตรวจว่าสกิล R พร้อมใช้งาน
 local function isSkillReady()
-    return btnR.BackgroundColor3 == Color3.fromRGB(40, 40, 40)
+    return btnR.BackgroundColor3 == Color3.fromRGB(40, 40, 40) -- สีปกติ = พร้อม
 end
 
 RunService.RenderStepped:Connect(function()
