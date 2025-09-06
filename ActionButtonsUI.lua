@@ -1,137 +1,135 @@
+-- LocalScript (StarterPlayerScripts)
+
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local HttpService = game:GetService("HttpService")
-
 local player = Players.LocalPlayer
-local saveEvent = ReplicatedStorage:WaitForChild("SaveUIButtonPosition")
+local humanoid = nil
 
--- โหลดข้อมูลตำแหน่งที่เซฟไว้
-local savedPositions = {}
-local rawData = player:GetAttribute("UIButtonPositions")
-if rawData and rawData ~= "" then
-    savedPositions = HttpService:JSONDecode(rawData)
+-- ฟังก์ชันอัพเดต Humanoid ตอนรีสปอน
+local function updateHumanoid()
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        humanoid = player.Character:FindFirstChild("Humanoid")
+    end
 end
 
+player.CharacterAdded:Connect(function()
+    wait(1)
+    updateHumanoid()
+end)
+updateHumanoid()
+
+-- UI หลัก
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ActionButtonsUI"
+screenGui.Name = "SkillUI"
+screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- ฟังก์ชันโหลดตำแหน่ง
+-- ตัวแปรเก็บตำแหน่ง
+local savedPositions = {}
+
+-- โหลดตำแหน่งที่เคยบันทึก (Session)
 local function loadPosition(name, defaultX)
     if savedPositions[name] then
-        return UDim2.new(savedPositions[name].scaleX, savedPositions[name].offsetX, savedPositions[name].scaleY, savedPositions[name].offsetY)
+        return savedPositions[name]
     else
         return UDim2.new(0.5, defaultX, 0.85, 0)
     end
 end
 
--- ฟังก์ชันเซฟตำแหน่ง
-local function savePosition(name, pos)
-    savedPositions[name] = {
-        scaleX = pos.X.Scale,
-        offsetX = pos.X.Offset,
-        scaleY = pos.Y.Scale,
-        offsetY = pos.Y.Offset
-    }
-    saveEvent:FireServer(name, savedPositions[name])
-end
-
--- สร้างปุ่ม
-local function createButton(name, text, color, defaultX)
+local function createButton(name, text, posX, key)
     local btn = Instance.new("TextButton")
     btn.Name = name
-    btn.Size = UDim2.new(0, 100, 0, 100)
-    btn.Position = loadPosition(name, defaultX)
+    btn.Size = UDim2.new(0, 100, 0, 50)
+    btn.Position = loadPosition(name, posX)
     btn.Text = text
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.BackgroundColor3 = color
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 22
-    btn.AutoButtonColor = true
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.FredokaOne
+    btn.TextSize = 28
     btn.Parent = screenGui
-    btn.ClipsDescendants = true
-    btn.ZIndex = 10
-    btn.BackgroundTransparency = 0.1
-    btn.BorderSizePixel = 0
-    btn.AnchorPoint = Vector2.new(0.5, 0.5)
-    btn.UICorner = Instance.new("UICorner", btn)
-    btn.UICorner.CornerRadius = UDim.new(0, 20)
 
-    -- เพิ่มการลากปุ่ม
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0.3, 0)
+    corner.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        game:GetService("VirtualInputManager"):SendKeyEvent(true, key, false, game)
+        task.wait(0.05)
+        game:GetService("VirtualInputManager"):SendKeyEvent(false, key, false, game)
+    end)
+
+    -- ✅ ระบบลาก + บันทึกตำแหน่ง
     local dragging = false
     local dragInput, dragStart, startPos
 
+    local function update(input)
+        local delta = input.Position - dragStart
+        local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        btn.Position = newPos
+        savedPositions[name] = newPos
+    end
+
     btn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = btn.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
         end
     end)
 
     btn.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end)
 
     UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-            btn.Position = newPos
-            savePosition(name, newPos)
-        end
-    end)
-
-    btn.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
+            update(input)
         end
     end)
 
     return btn
 end
 
--- สร้างปุ่ม R และ Y
-local btnR = createButton("BtnR", "R", Color3.fromRGB(255, 100, 100), -120)
-local btnY = createButton("BtnY", "Y", Color3.fromRGB(100, 255, 100), 120)
+-- สร้างปุ่ม
+local btnR = createButton("ButtonR", "R", -110, "R")
+local btnY = createButton("ButtonY", "Y", 10, "Y")
 
--- ปุ่ม R กดเอง
-btnR.MouseButton1Click:Connect(function()
-    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.R, false, game)
-    task.wait(0.1)
-    game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.R, false, game)
-end)
-
--- ปุ่ม Y กดเอง
-btnY.MouseButton1Click:Connect(function()
-    game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.Y, false, game)
-    task.wait(0.1)
-    game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.Y, false, game)
-end)
-
--- ✅ Auto-R ติดตัว (ทำงานเมื่อเลือดต่ำกว่า 55% และไม่กดรัวตอนคูลดาว)
-local humanoid
-local function getHumanoid()
-    local char = player.Character or player.CharacterAdded:Wait()
-    return char:WaitForChild("Humanoid")
+-- ฟังก์ชันกดปุ่มผ่านสคริปต์
+local function pressKey(key)
+    game:GetService("VirtualInputManager"):SendKeyEvent(true, key, false, game)
+    task.wait(0.05)
+    game:GetService("VirtualInputManager"):SendKeyEvent(false, key, false, game)
 end
-humanoid = getHumanoid()
 
-player.CharacterAdded:Connect(function()
-    humanoid = getHumanoid()
-end)
+-- ป้องกัน Kick
+hookfunction(Players.LocalPlayer.Kick, function() return end)
 
+-- ✅ ระบบ Auto-R (ติดตัว)
 local lastPress = 0
-RunService.Heartbeat:Connect(function()
-    if humanoid and humanoid.Health / humanoid.MaxHealth <= 0.55 then
-        if tick() - lastPress > 2 then -- กดทุก 2 วิ เพื่อเลี่ยงบั๊กคูลดาว
-            game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.R, false, game)
-            task.wait(0.1)
-            game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.R, false, game)
+local cooldownTime = 5 -- ป้องกันกดรัว
+local function canPress()
+    return tick() - lastPress >= cooldownTime
+end
+
+-- ✅ ตรวจว่าปุ่ม R ยังไม่ถูกกด (ป้องกันกดรัวจนปุ่มเดินหาย)
+local function isSkillReady()
+    return btnR.BackgroundColor3 == Color3.fromRGB(40, 40, 40)
+end
+
+RunService.RenderStepped:Connect(function()
+    if humanoid and humanoid.Health > 0 then
+        local healthPercent = (humanoid.Health / humanoid.MaxHealth) * 100
+        if healthPercent <= 55 and canPress() and isSkillReady() then
+            pressKey("R")
             lastPress = tick()
         end
     end
